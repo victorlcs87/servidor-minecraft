@@ -1,0 +1,94 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2023-06-18T11:45:33+02:00",
+    "name": "Vanilla Bedrock",
+    "author": "parker@parkervcp.com",
+    "description": "Bedrock Edition (also known as the Bedrock Version, Bedrock Codebase, Bedrock Engine or just Bedrock) refers to the multi-platform family of editions of Minecraft developed by Mojang AB, Microsoft Studios, 4J Studios, and SkyBox Labs. Prior to this term, as the engine originated with Pocket Edition, this entire product family was referred to as \"Pocket Edition\", \"MCPE\", or \"Pocket\/Windows 10 Edition\".",
+    "features": [
+        "pid_limit"
+    ],
+    "docker_images": {
+        "ghcr.io\/parkervcp\/yolks:debian": "ghcr.io\/parkervcp\/yolks:debian"
+    },
+    "file_denylist": [],
+    "startup": ".\/bedrock_server",
+    "config": {
+        "files": "{\r\n    \"server.properties\": {\r\n        \"parser\": \"properties\",\r\n        \"find\": {\r\n            \"server-port\": \"{{server.build.default.port}}\",\r\n            \"server-name\": \"{{server.build.env.SERVERNAME}}\",\r\n            \"gamemode\": \"{{server.build.env.GAMEMODE}}\",\r\n            \"difficulty\": \"{{server.build.env.DIFFICULTY}}\",\r\n            \"allow-cheats\": \"{{server.build.env.CHEATS}}\"\r\n        }\r\n    }\r\n}",
+        "startup": "{\r\n    \"done\": \"Server started\"\r\n}",
+        "logs": "{}",
+        "stop": "stop"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\r\n\r\n# Forçar DNS Google\r\necho \"nameserver 8.8.8.8\" > /etc/resolv.conf\r\n\r\napt update\r\napt install -y zip unzip wget curl iputils-ping\r\n\r\nif [ ! -d /mnt/server/ ]; then\r\n    mkdir /mnt/server/\r\nfi\r\n\r\ncd /mnt/server\r\n\r\n# 1. Se o usuario forneceu URL direta, use-a\r\nif [ ! -z \"${DOWNLOAD_URL}\" ]; then\r\n    echo \"Usando URL customizada: ${DOWNLOAD_URL}\"\r\n    DIRECT_URL=\"${DOWNLOAD_URL}\"\r\nelse\r\n    # 2. Caso contrario, tente o metodo automatico (Oficial)\r\n    RANDVERSION=$(echo $((1 + $RANDOM % 4000)))\r\n    if [ -z \"${BEDROCK_VERSION}\" ] || [ \"${BEDROCK_VERSION}\" == \"latest\" ]; then\r\n        echo \"Buscando ultima versao...\"\r\n        curl -L -A \"Mozilla/5.0\" -o versions.html.gz https://www.minecraft.net/en-us/download/server/bedrock\r\n        DIRECT_URL=$(zgrep -o 'https://minecraft.azureedge.net/bin-linux/[^\"]*' versions.html.gz)\r\n    else \r\n        echo \"Usando versao especifica: ${BEDROCK_VERSION}\"\r\n        DIRECT_URL=https://minecraft.azureedge.net/bin-linux/bedrock-server-${BEDROCK_VERSION}.zip\r\n    fi\r\nfi\r\n\r\nif [ -z \"$DIRECT_URL\" ]; then\r\n    echo \"ERRO: Nenhuma URL encontrada. Verifique a versao ou use a variavel DOWNLOAD_URL.\"\r\n    exit 1\r\nfi\r\n\r\nFILE_NAME=$(echo ${DIRECT_URL} | cut -d\"/\" -f5)\r\n\r\necho \"Baixando: $DIRECT_URL\"\r\ncurl -L -A \"Mozilla/5.0\" -o $FILE_NAME $DIRECT_URL\r\n\r\nif [ ! -f \"$FILE_NAME\" ]; then\r\n    echo \"ERRO: Download falhou.\"\r\n    exit 1\r\nfi\r\n\r\nunzip -o $FILE_NAME\r\nrm $FILE_NAME versions.html.gz\r\n\r\nchmod +x bedrock_server\r\necho \"Instalacao concluida.\"",
+            "container": "ghcr.io/parkervcp/installers:debian",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Bedrock Version",
+            "description": "Version of Bedrock to download (e.g. 1.21.60.10). Leave 'latest' to auto-detect.",
+            "env_variable": "BEDROCK_VERSION",
+            "default_value": "latest",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:20",
+            "field_type": "text"
+        },
+        {
+            "name": "Download URL",
+            "description": "(Opcional) Cole o link direto do .zip aqui se o automatico falhar.",
+            "env_variable": "DOWNLOAD_URL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Server Name",
+            "description": "The name for the server",
+            "env_variable": "SERVERNAME",
+            "default_value": "Bedrock Dedicated Server",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:50",
+            "field_type": "text"
+        },
+        {
+            "name": "Gamemode",
+            "description": "Allowed values: \"survival\", \"creative\", or \"adventure\"",
+            "env_variable": "GAMEMODE",
+            "default_value": "survival",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:survival,creative,adventure",
+            "field_type": "text"
+        },
+        {
+            "name": "Difficulty",
+            "description": "Allowed values: \"peaceful\", \"easy\", \"normal\", or \"hard\"",
+            "env_variable": "DIFFICULTY",
+            "default_value": "easy",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:peaceful,easy,normal,hard",
+            "field_type": "text"
+        },
+        {
+            "name": "Allow cheats",
+            "description": "If true then cheats like commands can be used.\r\n\r\nAllowed values: \"true\" or \"false\"",
+            "env_variable": "CHEATS",
+            "default_value": "false",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:true,false",
+            "field_type": "text"
+        }
+    ]
+}
