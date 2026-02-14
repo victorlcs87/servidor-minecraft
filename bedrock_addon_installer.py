@@ -1268,9 +1268,59 @@ def main() -> int:
     parser.add_argument("--auto-install", type=Path, help="Caminho para arquivo .zip/.mcpack para instalação automática (sem TUI)")
     parser.add_argument("--server-dir", type=Path, default=Path.cwd(), help="Pasta raiz do servidor")
     
+    parser.add_argument("--auto-scan", action="store_true", help="Procura automaticamente por pastas addons_auto_install em todos os servidores detectados e instala os addons.")
+    
     args = parser.parse_args()
 
-    # Modo CLI (Auto-Install)
+    # Modo Auto-Scan (Procura em todos os servidores detectados)
+    if args.auto_scan:
+        title("Auto-Scan Addons Mode")
+        detected = detect_server_dirs(Path.cwd())
+        if not detected:
+            print("[INFO] Nenhum servidor Bedrock detectado para scan.")
+            return 0
+        
+        found_any = False
+        for srv in detected:
+            auto_dir = srv / "addons_auto_install"
+            if auto_dir.exists() and auto_dir.is_dir():
+                # Acha o mundo (primeiro disponível)
+                worlds = read_world_list(srv)
+                if not worlds:
+                    continue
+                
+                world_dir = srv / "worlds" / worlds[0]
+                
+                # Procura por arquivos
+                files = []
+                for ext in ["*.zip", "*.mcpack", "*.mcaddon"]:
+                    files.extend(list(auto_dir.glob(ext)))
+                
+                if not files:
+                    continue
+                
+                found_any = True
+                print(f"\n[Server] {srv.name} ({srv})")
+                print(f"[World]  {world_dir.name}")
+                
+                processed_dir = auto_dir / "processed"
+                processed_dir.mkdir(exist_ok=True)
+                
+                for f in files:
+                    print(f"[Auto-Install] Instalando: {f.name}")
+                    try:
+                        install_from_archive(srv, world_dir, f)
+                        # Move para processados
+                        shutil.move(str(f), str(processed_dir / f.name))
+                        ok(f"Sucesso: {f.name}")
+                    except Exception as e:
+                        err(f"Falha ao instalar {f.name}: {e}")
+        
+        if not found_any:
+            print("[INFO] Nenhum novo addon encontrado nas pastas addons_auto_install.")
+        return 0
+
+    # Modo CLI (Auto-Install específico para um arquivo)
     if args.auto_install:
         if not args.auto_install.exists():
             print(f"[ERROR] Arquivo não encontrado: {args.auto_install}")
