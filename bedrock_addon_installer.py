@@ -546,7 +546,7 @@ def run_install(server_dir: Path, world_dir: Path, behavior_src: Optional[Path],
     installed = scan_installed(server_dir)
     active = load_active_ids(world_dir)
     report = write_world_packs_md(world_dir, installed, active)
-    ok(f"Relatório gerado/atualizado: {report}")
+    ok(f"Relatório gerado/atualizado: {report.name}")
 
 
 def find_all_bp_rp_folders(root_folder: Path, max_depth: int = 5) -> Tuple[List[Path], List[Path]]:
@@ -703,7 +703,7 @@ def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folde
     installed = scan_installed(server_dir)
     active = load_active_ids(world_dir)
     report = write_world_packs_md(world_dir, installed, active)
-    ok(f"Relatório gerado/atualizado: {report}")
+    ok(f"Relatório gerado/atualizado: {report.name}")
     
     # Resumo final
     if failed_installs:
@@ -1310,7 +1310,9 @@ def main() -> int:
                     continue
                 
                 found_any = True
-                print(f"\n[Server] {srv.name} ({srv})")
+                # Mostrar apenas o nome da pasta ou 'Raiz'
+                srv_display = srv.name if srv.name else "Raiz"
+                print(f"\n[Server] {srv_display}")
                 print(f"[World]  {world_dir.name}")
                 
                 processed_dir = auto_dir / "processed"
