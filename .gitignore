@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.env
+
+# Project specific
+egg-new.json
+wiki.html
+
+# Minecraft Bedrock / Backups
+*.bak
+*.prewrite.bak
+*.invalid.bak
+processed/
+addons_auto_install/processed/
+
+# Server files (if running locally)
+bedrock_server
+bedrock_server_how_to.html
+allowlist.json
+permissions.json
+server.properties
+valid_known_packs.json
+world_behavior_packs.json
+world_resource_packs.json
+worlds/
+behavior_packs/
+resource_packs/
+
+# Archives
+*.zip
+*.mcpack
+*.mcaddon
+
+# OS files
+.DS_Store
+Thumbs.db
