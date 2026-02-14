@@ -48,43 +48,41 @@ try:
     from rich.panel import Panel
     from rich.text import Text
     from rich import box
-    RICH_AVAILABLE = True
-    console = Console()
+    console: Optional[Console] = Console()
 except ImportError:
-    RICH_AVAILABLE = False
     console = None
 
 
 def info(msg: str) -> None:
-    if RICH_AVAILABLE:
+    if console:
         console.print(f"[cyan][ℹ][/cyan] {msg}")
     else:
         print(f"[i] {msg}")
 
 
 def ok(msg: str) -> None:
-    if RICH_AVAILABLE:
+    if console:
         console.print(f"[bold green][✓][/bold green] {msg}")
     else:
         print(f"[OK] {msg}")
 
 
 def warn(msg: str) -> None:
-    if RICH_AVAILABLE:
+    if console:
         console.print(f"[bold yellow][⚠][/bold yellow] {msg}")
     else:
         print(f"[!] {msg}")
 
 
 def err(msg: str) -> None:
-    if RICH_AVAILABLE:
+    if console:
         console.print(f"[bold red][✗][/bold red] {msg}")
     else:
         print(f"[x] {msg}")
 
 
 def title(msg: str) -> None:
-    if RICH_AVAILABLE:
+    if console:
         console.print()
         console.print(Panel(
             Text(msg, style="bold magenta", justify="center"),
@@ -102,7 +100,7 @@ def title(msg: str) -> None:
 
 def goodbye_msg() -> None:
     """Mensagem de saída quando usuário cancela com Ctrl+C."""
-    if RICH_AVAILABLE:
+    if console:
         console.print()
         console.print(Panel(
             Text("👋 Até logo! Operação cancelada pelo usuário.", style="bold cyan", justify="center"),
@@ -117,7 +115,7 @@ def goodbye_msg() -> None:
 
 def colorize_type(which: str) -> str:
     """Retorna o tipo do pack com cor apropriada."""
-    if RICH_AVAILABLE:
+    if console:
         if which == "behavior":
             return "[bold orange3]behavior[/bold orange3]"
         elif which == "resource":
@@ -127,7 +125,7 @@ def colorize_type(which: str) -> str:
 
 def colorize_status(is_active: bool) -> str:
     """Retorna o status com cor apropriada."""
-    if RICH_AVAILABLE:
+    if console:
         if is_active:
             return "[bold green]ACTIVE[/bold green]"
         else:
@@ -186,10 +184,10 @@ def ensure_dependencies() -> None:
 
 def tui():
     ensure_dependencies()
-    from InquirerPy import inquirer
-    from InquirerPy.validator import PathValidator
-    from InquirerPy.base import Choice
-    from InquirerPy.separator import Separator
+    from InquirerPy import inquirer  # type: ignore
+    from InquirerPy.validator import PathValidator  # type: ignore
+    from InquirerPy.base import Choice  # type: ignore
+    from InquirerPy.separator import Separator  # type: ignore
 
     return inquirer, PathValidator, Choice, Separator
 
@@ -313,7 +311,11 @@ def pack_ref_from_manifest(manifest: Dict[str, Any], which: str, folder_name: st
     if not isinstance(version, list) or not all(isinstance(x, int) for x in version):
         version = [1, 0, 0]
 
-    return PackRef(which=which, name=folder_name, pack_id=pack_id, version=version)
+    # Ensure strict list[int] for type checker
+    if version is None:
+        version = [1, 0, 0]
+    version_int: List[int] = [int(x) for x in version]
+    return PackRef(which=which, name=folder_name, pack_id=pack_id, version=version_int)
 
 
 def iter_pack_dirs(source: Path) -> List[Path]:
@@ -364,7 +366,7 @@ def world_json_path(world_dir: Path, which: str) -> Path:
     return world_dir / f"world_{which}_packs.json"
 
 
-def load_active_ids(world_dir: Path) -> Dict[str, set]:
+def load_active_ids(world_dir: Path) -> Any:
     out = {"behavior": set(), "resource": set()}
     for which in ("behavior", "resource"):
         path = world_json_path(world_dir, which)
@@ -382,7 +384,7 @@ def update_world_json(world_dir: Path, which: str, new_refs: List[PackRef]) -> N
     filename = f"world_{which}_packs.json"
     path = world_json_path(world_dir, which)
 
-    existing: List[Any] = []
+    existing: List[Dict[str, Any]] = []
     if path.exists():
         try:
             data = load_json(path)
@@ -403,9 +405,10 @@ def update_world_json(world_dir: Path, which: str, new_refs: List[PackRef]) -> N
     added = 0
     for ref in new_refs:
         if ref.pack_id not in seen:
-            existing.append({"pack_id": ref.pack_id, "version": ref.version})
+            item: Dict[str, Any] = {"pack_id": ref.pack_id, "version": ref.version}
+            existing.append(item)
             seen.add(ref.pack_id)
-            added += 1
+            added = added + 1
 
     safe_backup(path, ".prewrite.bak")
     dump_json(path, existing)
@@ -504,7 +507,7 @@ def run_install(server_dir: Path, world_dir: Path, behavior_src: Optional[Path],
     resource_refs: List[PackRef] = []
 
     if behavior_src is not None:
-        behavior_root = server_dir / "behavior_packs"
+        behavior_root = Path(server_dir) / "behavior_packs"
         behavior_root.mkdir(parents=True, exist_ok=True)
         info(f"Copiando Behavior Packs para: {behavior_root}")
         for p in iter_pack_dirs(behavior_src):
@@ -515,7 +518,7 @@ def run_install(server_dir: Path, world_dir: Path, behavior_src: Optional[Path],
         ok(f"Behavior Packs processados: {len(behavior_refs)}")
 
     if resource_src is not None:
-        resource_root = server_dir / "resource_packs"
+        resource_root = Path(server_dir) / "resource_packs"
         resource_root.mkdir(parents=True, exist_ok=True)
         info(f"Copiando Resource Packs para: {resource_root}")
         for p in iter_pack_dirs(resource_src):
@@ -551,11 +554,26 @@ def find_all_bp_rp_folders(root_folder: Path, max_depth: int = 5) -> Tuple[List[
     
     def is_bp_or_rp_name(name: str) -> Tuple[bool, bool]:
         """Retorna (is_bp, is_rp) baseado no nome."""
-        name_upper = name.upper()
-        # Verificar se contém BP ou RP como palavra separada ou no final
-        # Evita falsos positivos como "EXAMPLE" contendo "RP"
-        is_bp = " BP" in f" {name_upper} " or name_upper.endswith(" BP") or name_upper.endswith("_BP") or name_upper == "BP"
-        is_rp = " RP" in f" {name_upper} " or name_upper.endswith(" RP") or name_upper.endswith("_RP") or name_upper == "RP"
+        name_lower = name.lower()
+        
+        # Behavior Pack variants
+        is_bp = (
+            "behavior" in name_lower 
+            or name_lower.endswith(" bp") 
+            or name_lower.endswith("_bp") 
+            or name_lower == "bp"
+            or " bp " in name_lower
+        )
+        
+        # Resource Pack variants
+        is_rp = (
+            "resource" in name_lower 
+            or name_lower.endswith(" rp") 
+            or name_lower.endswith("_rp") 
+            or name_lower == "rp"
+            or " rp " in name_lower
+        )
+        
         return is_bp, is_rp
     
     def scan_recursive(folder: Path, depth: int) -> None:
@@ -635,8 +653,8 @@ def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folde
     all_resource_refs: List[PackRef] = []
     failed_installs: List[Tuple[str, str, str]] = []  # (nome, tipo, motivo)
     
-    behavior_root = server_dir / "behavior_packs"
-    resource_root = server_dir / "resource_packs"
+    behavior_root = Path(server_dir) / "behavior_packs"
+    resource_root = Path(server_dir) / "resource_packs"
     
     for bp in behavior_paths:
         try:
@@ -686,6 +704,16 @@ def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folde
         warn(f"⚠ Resumo: {len(all_behavior_refs) + len(all_resource_refs)} instalados, {len(failed_installs)} falharam")
 
 
+
+
+
+
+
+
+
+
+
+
 def install_from_archive(server_dir: Path, world_dir: Path, archive_path: Path) -> None:
     """Instala addon a partir de um arquivo .zip/.mcpack/.mcaddon."""
     info(f"Processando arquivo: {archive_path.name}")
@@ -696,6 +724,29 @@ def install_from_archive(server_dir: Path, world_dir: Path, archive_path: Path) 
             with zipfile.ZipFile(archive_path, 'r') as zip_ref:
                 zip_ref.extractall(temp_path)
             
+            # Extração recursiva de mcpack/mcaddon internos
+            def extract_recursive(folder: Path):
+                found_archives = False
+                for item in list(folder.rglob("*")):
+                    if item.is_file() and item.suffix.lower() in [".mcpack", ".mcaddon", ".zip"]:
+                        info(f"Extraindo arquivo interno: {item.name}")
+                        # Cria pasta com mesmo nome (sem extensão) para extrair
+                        target_dir = item.parent / item.stem
+                        target_dir.mkdir(exist_ok=True)
+                        try:
+                            with zipfile.ZipFile(item, 'r') as z:
+                                z.extractall(target_dir)
+                            item.unlink() # Remove o arquivo original após extrair
+                            found_archives = True
+                        except Exception as e:
+                            warn(f"Falha ao extrair {item.name}: {e}")
+                
+                # Se extraiu algo novo, varre novamente (pode ter zip dentro de zip)
+                if found_archives:
+                    extract_recursive(folder)
+
+            extract_recursive(temp_path)
+
             # Reutiliza a lógica existente de instalação a partir de pasta
             run_install_from_addon_folder(server_dir, world_dir, temp_path)
             
@@ -722,48 +773,6 @@ def delete_pack(server_dir: Path, world_dir: Path, pack_ref: PackRef) -> None:
             err(f"Erro ao deletar pasta {pack_path.name}: {e}")
     else:
         warn(f"Pasta não encontrada (já deletada?): {pack_path.name}")
-
-
-def install_from_archive(server_dir: Path, world_dir: Path, archive_path: Path) -> None:
-    """Instala addon a partir de um arquivo .zip/.mcpack/.mcaddon."""
-    info(f"Processando arquivo: {archive_path.name}")
-    
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        try:
-            with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-                zip_ref.extractall(temp_path)
-            
-            # Reutiliza a lógica existente de instalação a partir de pasta
-            run_install_from_addon_folder(server_dir, world_dir, temp_path)
-            
-        except zipfile.BadZipFile:
-            err(f"Arquivo inválido ou corrompido: {archive_path.name}")
-        except Exception as e:
-            err(f"Erro ao processar arquivo: {e}")
-
-
-def delete_pack(server_dir: Path, world_dir: Path, pack_ref: PackRef) -> None:
-    """Remove um pack do JSON do mundo e deleta a pasta física."""
-    
-    # 1. Remover do JSON do mundo (desativar)
-    set_active(world_dir, pack_ref, active=False)
-    
-    # 2. Deletar pasta física
-    pack_path = server_dir / ("behavior_packs" if pack_ref.which == "behavior" else "resource_packs") / pack_ref.name
-    
-    if pack_path.exists():
-        try:
-            shutil.rmtree(pack_path)
-            ok(f"Pasta deletada: {pack_path.name}")
-        except Exception as e:
-            err(f"Erro ao deletar pasta {pack_path.name}: {e}")
-    else:
-        warn(f"Pasta não encontrada (já deletada?): {pack_path.name}")
-
-
-
-
 
 
 def _apply_filter(packs: List[PackRef], active: Dict[str, set], type_filter: str, status_filter: str, text: str) -> List[PackRef]:
@@ -789,13 +798,13 @@ def _batch_set_active(world_dir: Path, installed_all: List[PackRef], selected: L
     Retorna (ativados, desativados).
     """
     active = load_active_ids(world_dir)
-    selected_ids = {"behavior": set(), "resource": set()}
+    selected_ids: Dict[str, Set[str]] = {"behavior": set(), "resource": set()}
     for p in selected:
         selected_ids[p.which].add(p.pack_id)
 
-    activated = 0
-    deactivated = 0
-
+    cnt_a = 0
+    cnt_d = 0
+    
     for which in ("behavior", "resource"):
         current = set(active[which])
         target = set(selected_ids[which])
@@ -808,16 +817,16 @@ def _batch_set_active(world_dir: Path, installed_all: List[PackRef], selected: L
             ref = next((p for p in installed_all if p.which == which and p.pack_id == pid), None)
             if ref:
                 set_active(world_dir, ref, active=True)
-                activated += 1
+                cnt_a = cnt_a + 1
 
         # disable
         for pid in to_disable:
             ref = next((p for p in installed_all if p.which == which and p.pack_id == pid), None)
             if ref:
                 set_active(world_dir, ref, active=False)
-                deactivated += 1
+                cnt_d = cnt_d + 1
 
-    return activated, deactivated
+    return cnt_a, cnt_d
 
 
 def manage_packs(server_dir: Path, world_dir: Path, inquirer, Choice, Separator) -> None:
@@ -932,7 +941,7 @@ def manage_packs(server_dir: Path, world_dir: Path, inquirer, Choice, Separator)
 
             selected_ids = {"behavior": set(), "resource": set()}
             for key in selected_keys:
-                p = pack_lookup.get(key)
+                p: Optional[PackRef] = pack_lookup.get(key)
                 if p:
                     selected_ids[p.which].add(p.pack_id)
 
@@ -979,7 +988,8 @@ def manage_packs(server_dir: Path, world_dir: Path, inquirer, Choice, Separator)
 
 
         if sel_action == "toggle" and sel_pack is not None:
-            p: PackRef = sel_pack
+            # Explicit cast/assignment to avoid type checker confusion
+            p: PackRef = sel_pack  # type: ignore
             is_active = p.pack_id in active[p.which]
             act = "Desativar" if is_active else "Ativar"
             type_label = "🟠 behavior" if p.which == "behavior" else "🔵 resource"
@@ -1082,7 +1092,11 @@ def remove_packs(server_dir: Path, world_dir: Path, inquirer, Choice, Separator)
                 info("Nenhum pack selecionado.")
                 continue
 
-            selected_packs = [pack_lookup[k] for k in selected_keys if k in pack_lookup]
+            # Ensure explicit checking for dictionary keys
+            selected_packs: List[PackRef] = []
+            for k in selected_keys:
+                if k in pack_lookup:
+                    selected_packs.append(pack_lookup[str(k)])
             
             warn(f"⚠ ATENÇÃO: Você vai APAGAR PERMANENTEMENTE {len(selected_packs)} pack(s):")
             for p in selected_packs:
@@ -1110,9 +1124,9 @@ def remove_packs(server_dir: Path, world_dir: Path, inquirer, Choice, Separator)
                     
                     # Apagar pasta
                     if ref.which == "behavior":
-                        pack_path = server_dir / "behavior_packs" / ref.name
+                        pack_path = Path(server_dir) / "behavior_packs" / ref.name
                     else:
-                        pack_path = server_dir / "resource_packs" / ref.name
+                        pack_path = Path(server_dir) / "resource_packs" / ref.name
                     
                     if pack_path.exists():
                         shutil.rmtree(pack_path)
@@ -1155,9 +1169,9 @@ def remove_packs(server_dir: Path, world_dir: Path, inquirer, Choice, Separator)
 
             # Apagar pasta
             if ref.which == "behavior":
-                pack_path = server_dir / "behavior_packs" / ref.name
+                pack_path = Path(server_dir) / "behavior_packs" / ref.name
             else:
-                pack_path = server_dir / "resource_packs" / ref.name
+                pack_path = Path(server_dir) / "resource_packs" / ref.name
 
             if pack_path.exists():
                 shutil.rmtree(pack_path)
@@ -1171,6 +1185,40 @@ def remove_packs(server_dir: Path, world_dir: Path, inquirer, Choice, Separator)
 
 
 
+
+
+def detect_server_dirs(start_path: Path) -> List[Path]:
+    """Detecta automaticamente diretórios de servidores Bedrock."""
+    candidates: List[Path] = []
+    
+    # Lista de locais padrões para verificar
+    search_paths = [
+        Path("/var/opt/minecraft/crafty/crafty-4/servers"),  # Crafty default
+        Path("/var/lib/pterodactyl/volumes"),                # Pterodactyl volumes (User requested)
+        start_path / "servers",                              # Relative ./servers
+        start_path,                                          # Current directory (single server?)
+    ]
+
+    for p in search_paths:
+        if not p.exists() or not p.is_dir():
+            continue
+
+        # 1. É um servidor direto? (tem pasta worlds)
+        if (p / "worlds").exists() and (p / "worlds").is_dir():
+            if p not in candidates:
+                candidates.append(p)
+        else:
+            # 2. É um container de servidores? (subpastas tem worlds)
+            # Evita recursão profunda, olha apenas 1 nível
+            try:
+                for sub in p.iterdir():
+                    if sub.is_dir() and (sub / "worlds").exists():
+                        if sub not in candidates:
+                            candidates.append(sub)
+            except PermissionError:
+                pass
+                
+    return candidates
 
 
 def manage_delete(server_dir: Path, world_dir: Path, inquirer, Choice, Separator) -> None:
@@ -1255,6 +1303,7 @@ def main() -> int:
         message="O que você quer fazer?",
         choices=[
             {"name": "Install Addon (pasta com RP/BP)", "value": "install_addon"},
+            {"name": "Install ZIP/mcaddon (arquivo)", "value": "install_zip"},
             {"name": "Install Manual (selecionar pastas separadas)", "value": "install"},
             {"name": "Manage (ativar/desativar + filtros + lote)", "value": "manage"},
             {"name": "Remove (desativar + apagar pack)", "value": "remove"},
@@ -1267,15 +1316,54 @@ def main() -> int:
         info("Saindo.")
         return 0
 
-    # Server dir
-    default = "/var/opt/minecraft/crafty/crafty-4/servers"
-    server_s = inquirer.filepath(
-        message="Selecione a pasta do servidor Bedrock (contém worlds/):",
-        default=default,
-        only_directories=True,
-        validate=PathValidator(is_dir=True, message="Selecione um diretório válido."),
-    ).execute()
-    server_dir = Path(server_s)
+    # Server dir detection
+    detected_servers = detect_server_dirs(Path.cwd())
+    
+    if not detected_servers:
+        # Fallback to manual entry
+        info("Nenhum servidor detectado automaticamente.")
+        default = "/var/opt/minecraft/crafty/crafty-4/servers"
+        server_s = inquirer.filepath(
+            message="Selecione a pasta do servidor Bedrock (contém worlds/):",
+            default=default,
+            only_directories=True,
+            validate=PathValidator(is_dir=True, message="Selecione um diretório válido."),
+        ).execute()
+        server_dir = Path(server_s)
+    elif len(detected_servers) == 1:
+        server_dir = detected_servers[0]
+        # Confirmação rápida se não for óbvio
+        if not inquirer.confirm(message=f"Usar servidor detectado: {server_dir}?", default=True).execute():
+             # Fallback manual
+            server_s = inquirer.filepath(
+                message="Selecione a pasta do servidor Bedrock:",
+                default=str(Path.cwd()),
+                only_directories=True,
+                validate=PathValidator(is_dir=True),
+            ).execute()
+            server_dir = Path(server_s)
+    else:
+        # Multiplos encontrados, pedir seleção
+        choices_srv = []
+        for d in detected_servers:
+            choices_srv.append(Choice(value=d, name=f"{d.name} ({d})"))
+        choices_srv.append(Choice(value=None, name="Outro (selecionar manualmente)"))
+        
+        sel = inquirer.select(
+            message=f"Servidores detectados ({len(detected_servers)}):",
+            choices=choices_srv,
+        ).execute()
+        
+        if sel is None:
+             server_s = inquirer.filepath(
+                message="Selecione a pasta do servidor Bedrock:",
+                default=str(Path.cwd()),
+                only_directories=True,
+                validate=PathValidator(is_dir=True),
+            ).execute()
+             server_dir = Path(server_s)
+        else:
+            server_dir = sel
 
     try:
         world_dir = choose_world(server_dir, inquirer)
