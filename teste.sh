@@ -1,30 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PAGE="https://www.minecraft.net/en-us/download/server/bedrock"
 UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+PAGE="https://minecraft.wiki/w/Bedrock_Dedicated_Server"
 
-echo "[1] Baixando HTML da página..."
-html="$(curl -L --http1.1 --connect-timeout 8 --max-time 30 -fsSL -A "$UA" \
-  -H "Accept-Language: en-US,en;q=0.9" \
-  "$PAGE")"
-echo "[ok] HTML bytes: ${#html}"
-
-echo "[2] Tentando extrair URL do ZIP (bin-linux)..."
-zip_url="$(
-  printf '%s' "$html" | tr '"' '\n' \
-  | grep -E '^https://.*/bin-linux/bedrock-server-.*\.zip$' \
-  | head -n1 || true
-)"
-
-if [[ -z "${zip_url:-}" ]]; then
-  echo "[info] Não achei bin-linux explícito. Tentando achar qualquer bedrock-server-*.zip no HTML..."
-  zip_url="$(
-    printf '%s' "$html" | tr '"' '\n' \
-    | grep -E '^https://.*bedrock-server-.*\.zip(\?.*)?$' \
-    | head -n1 || true
-  )"
-fi
+echo "[1] Baixando HTML da Wiki ($PAGE)..."
+# Baixa o HTML, filtra URLs de linux, ordena por versão (sort -V) e pega a última
+zip_url="$(curl -L -A "$UA" -s "$PAGE" | \
+  grep -o 'https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-[0-9.]*\.zip' | \
+  sort -V | tail -n 1)"
 
 if [[ -n "${zip_url:-}" ]]; then
   echo "[ok] Achei URL no HTML:"
