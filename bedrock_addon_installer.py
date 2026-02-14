@@ -447,7 +447,13 @@ def scan_installed(server_dir: Path) -> List[PackRef]:
         root = server_dir / rootname
         if not root.exists():
             continue
+        
+        # Pastas do sistema que não devem ser mexidas
+        system_folders = {"vanilla", "chemistry", "premium_cache", "development_behavior_packs", "development_resource_packs"}
+        
         for d in [p for p in root.iterdir() if p.is_dir()]:
+            if d.name.lower() in system_folders or d.name.lower().startswith("chemistry"):
+                continue
             m = ensure_manifest(d, which)
             installed.append(pack_ref_from_manifest(m, which, d.name))
     return installed
@@ -718,7 +724,11 @@ def install_from_archive(server_dir: Path, world_dir: Path, archive_path: Path) 
     """Instala addon a partir de um arquivo .zip/.mcpack/.mcaddon."""
     info(f"Processando arquivo: {archive_path.name}")
     
-    with tempfile.TemporaryDirectory() as temp_dir:
+    # Usar uma pasta temporária dentro do diretório do servidor para evitar problemas de espaço no /tmp
+    temp_extract_base = server_dir / ".tmp_addon_extract"
+    temp_extract_base.mkdir(exist_ok=True)
+    
+    with tempfile.TemporaryDirectory(dir=temp_extract_base) as temp_dir:
         temp_path = Path(temp_dir)
         try:
             with zipfile.ZipFile(archive_path, 'r') as zip_ref:
