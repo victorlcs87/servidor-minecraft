@@ -1,38 +1,33 @@
 {
-    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
     "meta": {
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2026-02-13T22:28:35-03:00",
     "name": "Vanilla Bedrock-NOVO",
     "author": "parker@parkervcp.com",
-    "description": "Bedrock Edition (also known as the Bedrock Version, Bedrock Codebase, Bedrock Engine or just Bedrock) refers to the multi-platform family of editions of Minecraft developed by Mojang AB, Microsoft Studios, 4J Studios, and SkyBox Labs. Prior to this term, as the engine originated with Pocket Edition, this entire product family was referred to as \"Pocket Edition\", \"MCPE\", or \"Pocket\/Windows 10 Edition\".",
     "features": [
         "pid_limit"
     ],
     "docker_images": {
-        "ghcr.io\/parkervcp\/yolks:debian": "ghcr.io\/parkervcp\/yolks:debian"
+        "ghcr.io/parkervcp/yolks:debian": "ghcr.io/parkervcp/yolks:debian"
     },
-    "file_denylist": [],
     "startup": "if [ -f auto_install_addons.sh ]; then bash auto_install_addons.sh; fi; ./bedrock_server",
     "config": {
-        "files": "{\r\n    \"server.properties\": {\r\n        \"parser\": \"properties\",\r\n        \"find\": {\r\n            \"server-port\": \"{{server.build.default.port}}\",\r\n            \"server-name\": \"{{server.build.env.SERVERNAME}}\",\r\n            \"gamemode\": \"{{server.build.env.GAMEMODE}}\",\r\n            \"difficulty\": \"{{server.build.env.DIFFICULTY}}\",\r\n            \"allow-cheats\": \"{{server.build.env.CHEATS}}\",\r\n            \"level-seed\": \"{{server.build.env.SEED}}\",\r\n            \"texturepack-required\": \"{{server.build.env.TEXTUREPACK}}\"\r\n        }\r\n    }\r\n}",
+        "files": "{\r\n    \"server.properties\": {\r\n        \"parser\": \"properties\",\r\n        \"find\": {\r\n            \"server-port\": \"{{server.build.default.port}}\",\r\n            \"server-name\": \"{{server.build.env.SERVERNAME}}\",\r\n            \"gamemode\": \"{{server.build.env.GAMEMODE}}\",\r\n            \"difficulty\": \"{{server.build.env.DIFFICULTY}}\",\r\n            \"allow-cheats\": \"{{server.build.env.CHEATS}}\",\r\n            \"level-seed\": \"{{server.build.env.SEED}}\",\r\n            \"texturepack-required\": \"{{server.build.env.TEXTUREPACK}}\",\r\n            \"default-player-permission-level\": \"{{server.build.env.PLAYERPERMISSION}}\"\r\n        }\r\n    }\r\n}",
         "startup": "{\r\n    \"done\": \"Server started\"\r\n}",
         "logs": "{}",
         "stop": "stop"
     },
     "scripts": {
         "installation": {
-            "script": "#!\/bin\/bash\r\n\r\n# For\u00e7ar DNS Google\r\necho \"nameserver 8.8.8.8\" > \/etc\/resolv.conf\r\n\r\napt update\r\napt install -y zip unzip wget curl iputils-ping\r\n\r\nif [ ! -d \/mnt\/server\/ ]; then\r\n    mkdir \/mnt\/server\/\r\nfi\r\n\r\ncd \/mnt\/server\r\n\r\n# 1. Se o usuario forneceu URL direta, use-a\r\nif [ ! -z \"${DOWNLOAD_URL}\" ]; then\r\n    echo \"Usando URL customizada: ${DOWNLOAD_URL}\"\r\n    DIRECT_URL=\"${DOWNLOAD_URL}\"\r\nelse\r\n    # 2. Caso contrario, tente o metodo automatico (Wiki)\r\n    if [ -z \"${BEDROCK_VERSION}\" ] || [ \"${BEDROCK_VERSION}\" == \"latest\" ]; then\r\n        echo \"Buscando ultima versao na Wiki...\"\r\n        curl -L -s -A \"Mozilla\/5.0\" -o wiki.html https:\/\/minecraft.wiki\/w\/Bedrock_Dedicated_Server\r\n        DIRECT_URL=$(grep -o 'https:\/\/www.minecraft.net\/bedrockdedicatedserver\/bin-linux\/bedrock-server-[0-9.]*\\.zip' wiki.html | sort -V | tail -n 1)\r\n        rm wiki.html\r\n    else \r\n        echo \"Usando versao especifica: ${BEDROCK_VERSION}\"\r\n        DIRECT_URL=https:\/\/minecraft.azureedge.net\/bin-linux\/bedrock-server-${BEDROCK_VERSION}.zip\r\n    fi\r\nfi\r\n\r\nif [ -z \"$DIRECT_URL\" ]; then\r\n    echo \"ERRO: Nenhuma URL encontrada. Verifique a versao ou use a variavel DOWNLOAD_URL.\"\r\n    exit 1\r\nfi\r\n\r\nFILE_NAME=$(echo ${DIRECT_URL} | cut -d\"\/\" -f5)\r\n\r\necho \"Baixando: $DIRECT_URL\"\r\ncurl -L -A \"Mozilla\/5.0\" -o $FILE_NAME $DIRECT_URL\r\n\r\nif [ ! -f \"$FILE_NAME\" ]; then\r\n    echo \"ERRO: Download falhou.\"\r\n    exit 1\r\nfi\r\n\r\nunzip -o $FILE_NAME\r\nrm $FILE_NAME\r\n\r\nchmod +x bedrock_server\r\necho \"Instalacao concluida.\"",
-            "container": "ghcr.io\/parkervcp\/installers:debian",
+            "script": "#!/bin/bash\necho \"nameserver 8.8.8.8\" > /etc/resolv.conf\napt update\napt install -y zip unzip wget curl iputils-ping python3 python3-pip\nmkdir -p /mnt/server\ncd /mnt/server\n# ----------------------------------------------------------------\n# DOWNLOAD BEDROCK SERVER\n# ----------------------------------------------------------------\nif [ ! -z \"${DOWNLOAD_URL}\" ]; then DIRECT_URL=\"${DOWNLOAD_URL}\"; else curl -L -s -A \"Mozilla/5.0\" -o wiki.html https://minecraft.wiki/w/Bedrock_Dedicated_Server; DIRECT_URL=$(grep -o \"https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-[0-9.]*\\.zip\" wiki.html | sort -V | tail -n 1); rm wiki.html; fi\nFILE_NAME=$(echo ${DIRECT_URL} | cut -d\"/\" -f5)\ncurl -L -A \"Mozilla/5.0\" -o $FILE_NAME $DIRECT_URL\nunzip -o $FILE_NAME\nrm $FILE_NAME\nchmod +x bedrock_server\n# ----------------------------------------------------------------\n# DOWNLOAD ADDON MANAGEMENT SCRIPTS\n# ----------------------------------------------------------------\necho \"Baixando scripts auxiliares do repositorio...\"\nmkdir -p addons_auto_install/processed\ncurl -L -s -o auto_install_addons.sh https://raw.githubusercontent.com/victorlcs87/servidor-minecraft/main/auto_install_addons.sh\ncurl -L -s -o bedrock_addon_installer.py https://raw.githubusercontent.com/victorlcs87/servidor-minecraft/main/bedrock_addon_installer.py\nchmod +x auto_install_addons.sh bedrock_addon_installer.py\necho \"Instalacao concluida.\"",
+            "container": "ghcr.io/parkervcp/installers:debian",
             "entrypoint": "bash"
         }
     },
     "variables": [
         {
             "name": "Bedrock Version",
-            "description": "Version of Bedrock to download (e.g. 1.21.60.10). Leave 'latest' to auto-detect.",
             "env_variable": "BEDROCK_VERSION",
             "default_value": "latest",
             "user_viewable": true,
@@ -42,7 +37,6 @@
         },
         {
             "name": "Server Name",
-            "description": "The name for the server",
             "env_variable": "SERVERNAME",
             "default_value": "Bedrock Dedicated Server",
             "user_viewable": true,
@@ -52,7 +46,6 @@
         },
         {
             "name": "Gamemode",
-            "description": "Allowed values: \"survival\", \"creative\", or \"adventure\"",
             "env_variable": "GAMEMODE",
             "default_value": "creative",
             "user_viewable": true,
@@ -62,7 +55,6 @@
         },
         {
             "name": "Difficulty",
-            "description": "Allowed values: \"peaceful\", \"easy\", \"normal\", or \"hard\"",
             "env_variable": "DIFFICULTY",
             "default_value": "easy",
             "user_viewable": true,
@@ -72,7 +64,6 @@
         },
         {
             "name": "Allow cheats",
-            "description": "If true then cheats like commands can be used.\r\n\r\nAllowed values: \"true\" or \"false\"",
             "env_variable": "CHEATS",
             "default_value": "true",
             "user_viewable": true,
@@ -82,7 +73,6 @@
         },
         {
             "name": "Seed",
-            "description": "",
             "env_variable": "SEED",
             "default_value": "1193926712",
             "user_viewable": true,
@@ -92,12 +82,20 @@
         },
         {
             "name": "Texturepack Required",
-            "description": "Force clients to use texture packs.",
             "env_variable": "TEXTUREPACK",
             "default_value": "true",
             "user_viewable": true,
             "user_editable": true,
             "rules": "required|string|in:true,false",
+            "field_type": "text"
+        },
+        {
+            "name": "Player Permission Level",
+            "env_variable": "PLAYERPERMISSION",
+            "default_value": "operator",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:visitor,member,operator",
             "field_type": "text"
         }
     ]

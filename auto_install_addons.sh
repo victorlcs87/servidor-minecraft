@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Diretórios
-SERVER_DIR="/var/opt/minecraft/crafty/crafty-4/servers"
-AUTO_INSTALL_DIR="${SERVER_DIR}/addons_auto_install"
+BASE_DIR="$(pwd)"
+AUTO_INSTALL_DIR="${BASE_DIR}/addons_auto_install"
 PROCESSED_DIR="${AUTO_INSTALL_DIR}/processed"
-INSTALLER_SCRIPT="${SERVER_DIR}/bedrock_addon_installer.py"
+INSTALLER_SCRIPT="${BASE_DIR}/bedrock_addon_installer.py"
 
 # Verifica se a pasta de auto-install existe
 if [ -d "$AUTO_INSTALL_DIR" ]; then
@@ -19,7 +19,7 @@ if [ -d "$AUTO_INSTALL_DIR" ]; then
         echo "[Auto-Install] Encontrado: $(basename "$file")"
         
         # Executa o instalador em modo silencioso
-        python3 "$INSTALLER_SCRIPT" --auto-install "$file" --server-dir "$SERVER_DIR"
+        python3 "$INSTALLER_SCRIPT" --auto-install "$file" --server-dir "$BASE_DIR"
         
         if [ $? -eq 0 ]; then
             echo "[Auto-Install] Sucesso! Movendo para processed/..."

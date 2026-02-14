@@ -1266,7 +1266,7 @@ def main() -> int:
     import argparse
     parser = argparse.ArgumentParser(description="Bedrock Addon Installer")
     parser.add_argument("--auto-install", type=Path, help="Caminho para arquivo .zip/.mcpack para instalação automática (sem TUI)")
-    parser.add_argument("--server-dir", type=Path, default=Path("/var/opt/minecraft/crafty/crafty-4/servers"), help="Pasta raiz do servidor")
+    parser.add_argument("--server-dir", type=Path, default=Path.cwd(), help="Pasta raiz do servidor")
     
     args = parser.parse_args()
 
@@ -1322,7 +1322,7 @@ def main() -> int:
     if not detected_servers:
         # Fallback to manual entry
         info("Nenhum servidor detectado automaticamente.")
-        default = "/var/opt/minecraft/crafty/crafty-4/servers"
+        default = str(Path.cwd())
         server_s = inquirer.filepath(
             message="Selecione a pasta do servidor Bedrock (contém worlds/):",
             default=default,
