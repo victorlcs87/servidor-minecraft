@@ -645,8 +645,49 @@ def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folde
     
     info(f"Encontrados: {len(behavior_paths)} Behavior Pack(s), {len(resource_paths)} Resource Pack(s)")
     
-    # Seleção interativa via checkbox quando há múltiplos packs
-    if inquirer and Choice and total_found > 1:
+    # Filtrar packs já instalados (por nome de pasta e UUID do manifest)
+    installed_packs = scan_installed(server_dir)
+    installed_names = {p.name.lower() for p in installed_packs}
+    installed_uuids = {p.pack_id for p in installed_packs}
+    
+    def is_already_installed(pack_path: Path, which: str) -> bool:
+        # Verifica por nome da pasta
+        if pack_path.name.lower() in installed_names:
+            return True
+        # Verifica por UUID do manifest
+        manifest_path = pack_path / "manifest.json"
+        if manifest_path.exists():
+            try:
+                m = load_json(manifest_path)
+                if isinstance(m, dict):
+                    header = m.get("header", {})
+                    if isinstance(header, dict) and header.get("uuid") in installed_uuids:
+                        return True
+            except Exception:
+                pass
+        return False
+    
+    skipped_bp = [bp for bp in behavior_paths if is_already_installed(bp, "behavior")]
+    skipped_rp = [rp for rp in resource_paths if is_already_installed(rp, "resource")]
+    behavior_paths = [bp for bp in behavior_paths if not is_already_installed(bp, "behavior")]
+    resource_paths = [rp for rp in resource_paths if not is_already_installed(rp, "resource")]
+    
+    if skipped_bp or skipped_rp:
+        skipped_total = len(skipped_bp) + len(skipped_rp)
+        info(f"Já instalados (ignorados): {skipped_total}")
+        for p in skipped_bp:
+            info(f"  ✔ 🟠 BP: {p.name}")
+        for p in skipped_rp:
+            info(f"  ✔ 🔵 RP: {p.name}")
+    
+    total_new = len(behavior_paths) + len(resource_paths)
+    
+    if total_new == 0:
+        ok("Todos os packs desta pasta já estão instalados!")
+        return
+    
+    # Seleção interativa via checkbox quando há packs novos
+    if inquirer and Choice and total_new >= 1:
         cb_choices = []
         for bp in sorted(behavior_paths, key=lambda x: x.name.lower()):
             cb_choices.append(Choice(value=("bp", bp), name=f"🟠 BP: {bp.name}", enabled=True))
@@ -654,7 +695,7 @@ def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folde
             cb_choices.append(Choice(value=("rp", rp), name=f"🔵 RP: {rp.name}", enabled=True))
         
         selected = inquirer.checkbox(
-            message=f"Selecione os packs para instalar ({total_found} encontrados):",
+            message=f"Selecione os packs para instalar ({total_new} novos):",
             choices=cb_choices,
             instruction="(Espaço marca/desmarca, Enter confirma)",
         ).execute()
@@ -664,6 +705,11 @@ def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folde
         
         if not behavior_paths and not resource_paths:
             info("Nenhum pack selecionado.")
+            return
+        
+        total_selected = len(behavior_paths) + len(resource_paths)
+        if not inquirer.confirm(message=f"Confirma a instalação de {total_selected} pack(s)?", default=True).execute():
+            info("Instalação cancelada.")
             return
     else:
         # Modo não-interativo: mostra o que será instalado
@@ -742,7 +788,7 @@ def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folde
 
 
 
-def install_from_archive(server_dir: Path, world_dir: Path, archive_path: Path) -> None:
+def install_from_archive(server_dir: Path, world_dir: Path, archive_path: Path, inquirer=None, Choice=None) -> None:
     """Instala addon a partir de um arquivo .zip/.mcpack/.mcaddon."""
     info(f"Processando arquivo: {archive_path.name}")
     
@@ -780,7 +826,7 @@ def install_from_archive(server_dir: Path, world_dir: Path, archive_path: Path) 
             extract_recursive(temp_path)
 
             # Reutiliza a lógica existente de instalação a partir de pasta
-            run_install_from_addon_folder(server_dir, world_dir, temp_path)
+            run_install_from_addon_folder(server_dir, world_dir, temp_path, inquirer=inquirer, Choice=Choice)
             
         except zipfile.BadZipFile:
             err(f"Arquivo inválido ou corrompido: {archive_path.name}")
@@ -1484,7 +1530,7 @@ def main() -> int:
                     only_directories=False,
                     validate=PathValidator(is_file=True, message="Selecione um arquivo válido."),
                 ).execute())
-                install_from_archive(server_dir, world_dir, archive_path)
+                install_from_archive(server_dir, world_dir, archive_path, inquirer=inquirer, Choice=Choice)
             else:
                 dir_path = Path(inquirer.filepath(
                     message="Selecione a pasta com os arquivos .zip/.mcpack/.mcaddon:",
@@ -1498,7 +1544,7 @@ def main() -> int:
                 if not archives:
                     warn("Nenhum arquivo .zip/.mcpack/.mcaddon encontrado nesta pasta.")
                 elif len(archives) == 1:
-                    install_from_archive(server_dir, world_dir, archives[0])
+                    install_from_archive(server_dir, world_dir, archives[0], inquirer=inquirer, Choice=Choice)
                 else:
                     cb_choices = []
                     for a in sorted(archives, key=lambda x: x.name.lower()):
@@ -1514,7 +1560,7 @@ def main() -> int:
                         info("Nenhum arquivo selecionado.")
                     else:
                         for archive in selected_archives:
-                            install_from_archive(server_dir, world_dir, archive)
+                            install_from_archive(server_dir, world_dir, archive, inquirer=inquirer, Choice=Choice)
 
         elif action == "install":
             behavior_src = None
