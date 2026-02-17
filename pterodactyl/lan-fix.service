@@ -1,6 +1,6 @@
 [Unit]
 Description=Minecraft Bedrock LAN Broadcast Fix
-packet_relay.py
+
 After=network-online.target
 Wants=network-online.target
 
