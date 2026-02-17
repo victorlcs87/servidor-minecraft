@@ -626,10 +626,11 @@ def find_all_bp_rp_folders(root_folder: Path, max_depth: int = 5) -> Tuple[List[
     return behavior_paths, resource_paths
 
 
-def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folder: Path) -> None:
+def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folder: Path, inquirer=None, Choice=None) -> None:
     """Instala addon(s) a partir de uma pasta.
     
     Busca recursivamente por todas as pastas BP e RP dentro da pasta selecionada.
+    Se inquirer e Choice forem fornecidos e houver múltiplos packs, mostra checkbox para seleção.
     """
     info(f"Buscando addons em: {addon_folder.name}")
     behavior_paths, resource_paths = find_all_bp_rp_folders(addon_folder)
@@ -644,15 +645,36 @@ def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folde
     
     info(f"Encontrados: {len(behavior_paths)} Behavior Pack(s), {len(resource_paths)} Resource Pack(s)")
     
-    if behavior_paths:
-        info("Behavior Packs:")
+    # Seleção interativa via checkbox quando há múltiplos packs
+    if inquirer and Choice and total_found > 1:
+        cb_choices = []
         for bp in sorted(behavior_paths, key=lambda x: x.name.lower()):
-            info(f"  → {bp.name}")
-    
-    if resource_paths:
-        info("Resource Packs:")
+            cb_choices.append(Choice(value=("bp", bp), name=f"🟠 BP: {bp.name}", enabled=True))
         for rp in sorted(resource_paths, key=lambda x: x.name.lower()):
-            info(f"  → {rp.name}")
+            cb_choices.append(Choice(value=("rp", rp), name=f"🔵 RP: {rp.name}", enabled=True))
+        
+        selected = inquirer.checkbox(
+            message=f"Selecione os packs para instalar ({total_found} encontrados):",
+            choices=cb_choices,
+            instruction="(Espaço marca/desmarca, Enter confirma)",
+        ).execute()
+        
+        behavior_paths = [path for type_, path in selected if type_ == "bp"]
+        resource_paths = [path for type_, path in selected if type_ == "rp"]
+        
+        if not behavior_paths and not resource_paths:
+            info("Nenhum pack selecionado.")
+            return
+    else:
+        # Modo não-interativo: mostra o que será instalado
+        if behavior_paths:
+            info("Behavior Packs:")
+            for bp in sorted(behavior_paths, key=lambda x: x.name.lower()):
+                info(f"  → {bp.name}")
+        if resource_paths:
+            info("Resource Packs:")
+            for rp in sorted(resource_paths, key=lambda x: x.name.lower()):
+                info(f"  → {rp.name}")
     
     # Instalar todos os packs encontrados
     all_behavior_refs: List[PackRef] = []
@@ -1437,20 +1459,62 @@ def main() -> int:
 
     try:
         if action == "install_addon":
-            addon_folder = Path(inquirer.filepath(
-                message="Selecione a pasta do addon (contendo subpastas RP/BP):",
-                only_directories=True,
-                validate=PathValidator(is_dir=True, message="Selecione um diretório válido."),
-            ).execute())
-            run_install_from_addon_folder(server_dir, world_dir, addon_folder)
+            while True:
+                addon_folder = Path(inquirer.filepath(
+                    message="Selecione a pasta do addon (contendo subpastas RP/BP):",
+                    only_directories=True,
+                    validate=PathValidator(is_dir=True, message="Selecione um diretório válido."),
+                ).execute())
+                run_install_from_addon_folder(server_dir, world_dir, addon_folder, inquirer=inquirer, Choice=Choice)
+                if not inquirer.confirm(message="Deseja instalar outro addon?", default=True).execute():
+                    break
 
         elif action == "install_zip":
-            archive_path = Path(inquirer.filepath(
-                message="Selecione o arquivo .zip/.mcpack/.mcaddon:",
-                only_directories=False,
-                validate=PathValidator(is_file=True, message="Selecione um arquivo válido."),
-            ).execute())
-            install_from_archive(server_dir, world_dir, archive_path)
+            zip_mode = inquirer.select(
+                message="Como deseja instalar?",
+                choices=[
+                    {"name": "📄 Selecionar arquivo único", "value": "file"},
+                    {"name": "📁 Selecionar pasta com vários arquivos", "value": "dir"},
+                ],
+            ).execute()
+
+            if zip_mode == "file":
+                archive_path = Path(inquirer.filepath(
+                    message="Selecione o arquivo .zip/.mcpack/.mcaddon:",
+                    only_directories=False,
+                    validate=PathValidator(is_file=True, message="Selecione um arquivo válido."),
+                ).execute())
+                install_from_archive(server_dir, world_dir, archive_path)
+            else:
+                dir_path = Path(inquirer.filepath(
+                    message="Selecione a pasta com os arquivos .zip/.mcpack/.mcaddon:",
+                    only_directories=True,
+                    validate=PathValidator(is_dir=True, message="Selecione um diretório válido."),
+                ).execute())
+                archives: List[Path] = []
+                for ext in ["*.zip", "*.mcpack", "*.mcaddon"]:
+                    archives.extend(list(dir_path.glob(ext)))
+                
+                if not archives:
+                    warn("Nenhum arquivo .zip/.mcpack/.mcaddon encontrado nesta pasta.")
+                elif len(archives) == 1:
+                    install_from_archive(server_dir, world_dir, archives[0])
+                else:
+                    cb_choices = []
+                    for a in sorted(archives, key=lambda x: x.name.lower()):
+                        cb_choices.append(Choice(value=a, name=a.name, enabled=True))
+                    
+                    selected_archives = inquirer.checkbox(
+                        message=f"Selecione os arquivos para instalar ({len(archives)} encontrados):",
+                        choices=cb_choices,
+                        instruction="(Espaço marca/desmarca, Enter confirma)",
+                    ).execute()
+                    
+                    if not selected_archives:
+                        info("Nenhum arquivo selecionado.")
+                    else:
+                        for archive in selected_archives:
+                            install_from_archive(server_dir, world_dir, archive)
 
         elif action == "install":
             behavior_src = None
