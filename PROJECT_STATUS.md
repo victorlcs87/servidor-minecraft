@@ -23,6 +23,11 @@ Este documento resume as melhorias implementadas no instalador de addons e na co
 - **Git Flow**: Todas as alterações foram commitadas e enviadas para o repositório `victorlcs87/servidor-minecraft`.
 - **Controle de Arquivos**: Criado arquivo `.gitignore` para manter o workspace limpo de backups, mundos e binários do servidor.
 
+### 5. Correção de Visibilidade LAN (Novo)
+- **Problema**: Servidores Bedrock rodando em containers Docker não recebem pacotes de broadcast da LAN (udp 19132), impedindo que apareçam na aba "Amigos".
+- **Solução**: Criado script Python (`lan_broadcast_fix.py`) que roda no host (VM) e retransmite esses pacotes, respondendo em nome dos servidores locais.
+- **Automação**: Incluído arquivo `lan-fix.service` para gerenciar o script via systemd.
+
 ---
 
 ## 📍 Onde estamos agora

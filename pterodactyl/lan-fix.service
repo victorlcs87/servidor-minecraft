@@ -1,0 +1,15 @@
+[Unit]
+Description=Minecraft Bedrock LAN Broadcast Fix
+packet_relay.py
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root
+ExecStart=/usr/bin/python3 /root/lan_broadcast_fix.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

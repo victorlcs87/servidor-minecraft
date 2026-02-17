@@ -46,3 +46,20 @@ Exemplo no Painel:
 *   IP `192.168.71.200` -> Porta `19132`
 *   IP `192.168.71.201` -> Porta `19132`
 *   ...
+
+## 4. [IMPORTANTE] Correção de Visibilidade LAN (Aba Amigos)
+
+Para que os servidores apareçam automaticamente na aba "Amigos" dos dispositivos na mesma rede, você precisa rodar o script de correção no **HOST (VM)** (não dentro do container).
+
+1.  Copie o script `lan_broadcast_fix.py` para a pasta `/root/` da VM.
+2.  Copie o arquivo `lan-fix.service` para `/etc/systemd/system/`.
+3.  Ative o serviço:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now lan-fix.service
+sudo systemctl status lan-fix.service
+```
+
+O script irá detectar automaticamente os IPs `192.168.71.x` e anunciá-los para a rede quando alguém abrir o Minecraft.
+
