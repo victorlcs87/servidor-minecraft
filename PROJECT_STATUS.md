@@ -28,6 +28,11 @@ Este documento resume as melhorias implementadas no instalador de addons e na co
 - **Solução**: Criado script Python (`lan_broadcast_fix.py`) que roda no host (VM) e retransmite esses pacotes, respondendo em nome dos servidores locais.
 - **Automação**: Incluído arquivo `lan-fix.service` para gerenciar o script via systemd.
 
+### 6. Reestruturação e Documentação
+- **Organização**: Scripts de instalação (`bedrock_addon_installer.py`, `auto_install_addons.sh`) movidos para a pasta `pterodactyl/` para melhor organização.
+- **Egg Atualizado**: O `egg-bedrock.json` agora baixa os scripts do novo local.
+- **Documentação Completa**: Criado `docs/INSTALL.md` com o guia passo-a-passo de toda a infraestrutura (Host, VM, Rede, Pterodactyl).
+
 ---
 
 ## 📍 Onde estamos agora
