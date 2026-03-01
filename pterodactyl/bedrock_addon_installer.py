@@ -204,9 +204,37 @@ class PackRef:
     version: List[int]
 
 
+def get_mod_display_name(name: str) -> str:
+    """Extrai nome para exibição: remove BP/RP mas PRESERVA versões."""
+    name = name.strip()
+    
+    # 1. Remove marcadores entre colchetes: [Behavior], [Resource], [BP], [RP]
+    name = re.sub(r'\s*\[\s*(behavior\s*pack|resource\s*pack|behavior|resource|bp|rp)\s*\]', '', name, flags=re.IGNORECASE)
+    
+    # 2. Substitui BPv/RPv por v (mantém a versão): "- BPv2.6.3" → "- v2.6.3"
+    name = re.sub(r'(\s*[-_]?\s*)(bp|rp)(v\d+(\.\d+)*)', r'\1\3', name, flags=re.IGNORECASE)
+    
+    # 3. Remove sufixos BP/RP soltos (sem versão grudada)
+    pattern = re.compile(
+        r'(\s*[-_]?\s*'
+        r'(behavior[_\s]?pack|resource[_\s]?pack|behavior|resource|bp|rp)'
+        r')(\s*$)',
+        re.IGNORECASE
+    )
+    name = pattern.sub('', name)
+    
+    # Limpar traços/underscores finais e espaços duplos
+    name = name.rstrip(' -_')
+    name = re.sub(r'\s{2,}', ' ', name)
+    
+    stripped = name.strip()
+    return stripped if stripped else name
+
+
 @dataclass
 class ModPair:
     base_name: str
+    display_label: str = ""
     behavior_path: Optional[Path] = None
     resource_path: Optional[Path] = None
 
@@ -216,12 +244,14 @@ class ModPair:
 
     @property
     def display_name(self) -> str:
-        return f"MOD: {self.base_name}"
+        label = self.display_label or self.base_name
+        return f"MOD: {label}"
 
 
 @dataclass
 class ModPackPair:
     base_name: str
+    display_label: str = ""
     behavior_ref: Optional[PackRef] = None
     resource_ref: Optional[PackRef] = None
 
@@ -231,7 +261,8 @@ class ModPackPair:
 
     @property
     def display_name(self) -> str:
-        return f"MOD: {self.base_name}"
+        label = self.display_label or self.base_name
+        return f"MOD: {label}"
 
 
 def get_mod_base_name(name: str) -> str:
@@ -769,13 +800,13 @@ def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folde
     for bp in behavior_paths:
         base = get_mod_base_name(bp.name)
         if base not in mod_pairs:
-            mod_pairs[base] = ModPair(base_name=base)
+            mod_pairs[base] = ModPair(base_name=base, display_label=get_mod_display_name(bp.name))
         mod_pairs[base].behavior_path = bp
         
     for rp in resource_paths:
         base = get_mod_base_name(rp.name)
         if base not in mod_pairs:
-            mod_pairs[base] = ModPair(base_name=base)
+            mod_pairs[base] = ModPair(base_name=base, display_label=get_mod_display_name(rp.name))
         mod_pairs[base].resource_path = rp
 
     # Seleção interativa via checkbox quando há packs novos
@@ -1020,7 +1051,7 @@ def manage_packs(server_dir: Path, world_dir: Path, inquirer, Choice, Separator)
         for p in filtered:
             base = get_mod_base_name(p.name)
             if base not in mod_packs:
-                mod_packs[base] = ModPackPair(base_name=base)
+                mod_packs[base] = ModPackPair(base_name=base, display_label=get_mod_display_name(p.name))
             if p.which == "behavior":
                 mod_packs[base].behavior_ref = p
             else:
@@ -1231,7 +1262,7 @@ def remove_packs(server_dir: Path, world_dir: Path, inquirer, Choice, Separator)
         for p in filtered:
             base = get_mod_base_name(p.name)
             if base not in mod_packs:
-                mod_packs[base] = ModPackPair(base_name=base)
+                mod_packs[base] = ModPackPair(base_name=base, display_label=get_mod_display_name(p.name))
             if p.which == "behavior":
                 mod_packs[base].behavior_ref = p
             else:
@@ -1465,7 +1496,7 @@ def manage_delete(server_dir: Path, world_dir: Path, inquirer, Choice, Separator
     for p in installed_all:
         base = get_mod_base_name(p.name)
         if base not in mod_packs:
-            mod_packs[base] = ModPackPair(base_name=base)
+            mod_packs[base] = ModPackPair(base_name=base, display_label=get_mod_display_name(p.name))
         if p.which == "behavior":
             mod_packs[base].behavior_ref = p
         else:
