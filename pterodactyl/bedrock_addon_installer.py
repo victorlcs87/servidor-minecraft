@@ -216,13 +216,7 @@ class ModPair:
 
     @property
     def display_name(self) -> str:
-        if self.has_both:
-            return f"🟢 MOD: {self.base_name}"
-        elif self.behavior_path:
-            return f"🟠 BP: {self.behavior_path.name}"
-        elif self.resource_path:
-            return f"🔵 RP: {self.resource_path.name}"
-        return self.base_name
+        return f"MOD: {self.base_name}"
 
 
 @dataclass
@@ -236,37 +230,38 @@ class ModPackPair:
         return self.behavior_ref is not None and self.resource_ref is not None
 
     @property
-    def is_active(self) -> Tuple[bool, bool]:
-        # Returns (bp_active, rp_active) - we'll compute this against active_ids later
-        return (False, False)
-
-    @property
     def display_name(self) -> str:
-        if self.has_both:
-            return f"MOD: {self.base_name}"
-        elif self.behavior_ref:
-            return f"BP: {self.behavior_ref.name}"
-        elif self.resource_ref:
-            return f"RP: {self.resource_ref.name}"
-        return self.base_name
+        return f"MOD: {self.base_name}"
 
 
 def get_mod_base_name(name: str) -> str:
-    """Extrai o nome base de um pack removendo sufixos BP/RP."""
+    """Extrai o nome base de um pack removendo sufixos BP/RP, versões e marcadores entre colchetes."""
     name = name.strip()
-    # Remove sufixos comuns ignorando case (ordem: mais longos primeiro)
+    
+    # 1. Remove marcadores entre colchetes: [Behavior], [Resource], [BP], [RP]
+    name = re.sub(r'\s*\[\s*(behavior\s*pack|resource\s*pack|behavior|resource|bp|rp)\s*\]', '', name, flags=re.IGNORECASE)
+    
+    # 2. Remove versões trailing (ex: V4.1, v2.6.3, v1)
+    name = re.sub(r'\s*[-_]?\s*v\d+(\.\d+)*\s*$', '', name, flags=re.IGNORECASE)
+    
+    # 3. Remove sufixos diretos: _behavior_pack, _resource_pack, _behavior, _resource, _bp, _rp, etc.
     pattern = re.compile(
         r'(\s*[-_]?\s*'
         r'(behavior[_\s]?pack|resource[_\s]?pack|behavior|resource|bp|rp)'
         r'\s*)$',
         re.IGNORECASE
     )
-    base = pattern.sub('', name)
+    name = pattern.sub('', name)
     
-    # Se sobrar apenas vazio, retorna o original em lowercase
-    stripped = base.strip()
+    # 4. Remove versões que sobraram após remoção de sufixos
+    name = re.sub(r'\s*[-_]?\s*v\d+(\.\d+)*\s*$', '', name, flags=re.IGNORECASE)
+    
+    # Limpar traços/underscores finais
+    name = name.rstrip(' -_')
+    
+    stripped = name.strip()
     if not stripped:
-         return name.lower()
+        return name.lower()
     return stripped.lower()
 
 
