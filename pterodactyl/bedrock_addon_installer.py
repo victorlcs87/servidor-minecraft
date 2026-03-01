@@ -254,8 +254,13 @@ class ModPackPair:
 def get_mod_base_name(name: str) -> str:
     """Extrai o nome base de um pack removendo sufixos BP/RP."""
     name = name.strip()
-    # Remove sufixos e prefixos comuns ignorando case
-    pattern = re.compile(r'(\s*[-_]?\s*(bp|rp|behavior|resource|behavior pack|resource pack)\s*)$', re.IGNORECASE)
+    # Remove sufixos comuns ignorando case (ordem: mais longos primeiro)
+    pattern = re.compile(
+        r'(\s*[-_]?\s*'
+        r'(behavior[_\s]?pack|resource[_\s]?pack|behavior|resource|bp|rp)'
+        r'\s*)$',
+        re.IGNORECASE
+    )
     base = pattern.sub('', name)
     
     # Se sobrar apenas vazio, retorna o original em lowercase
@@ -767,26 +772,35 @@ def run_install_from_addon_folder(server_dir: Path, world_dir: Path, addon_folde
 
     # Seleção interativa via checkbox quando há packs novos
     if inquirer and Choice and total_new >= 1:
+        # Usar string keys para evitar problemas de serialização do InquirerPy
+        pair_lookup: Dict[str, ModPair] = {}
         cb_choices = []
         for base_name, pair in sorted(mod_pairs.items()):
-            # value contains both paths so we can install them together
-            cb_choices.append(Choice(value=pair, name=pair.display_name, enabled=True))
+            pair_lookup[base_name] = pair
+            cb_choices.append(Choice(value=base_name, name=pair.display_name, enabled=True))
         
-        selected_pairs = inquirer.checkbox(
+        selected_keys = inquirer.checkbox(
             message=f"Selecione os mods para instalar ({len(mod_pairs)} encontrados):",
             choices=cb_choices,
             instruction="(Espaço marca/desmarca, Enter confirma)",
         ).execute()
         
-        if not selected_pairs:
+        if not selected_keys:
             info("Nenhum mod selecionado.")
             return
 
-        behavior_paths = [pair.behavior_path for pair in selected_pairs if pair.behavior_path]
-        resource_paths = [pair.resource_path for pair in selected_pairs if pair.resource_path]
+        behavior_paths = []
+        resource_paths = []
+        for key in selected_keys:
+            pair = pair_lookup.get(key)
+            if pair:
+                if pair.behavior_path:
+                    behavior_paths.append(pair.behavior_path)
+                if pair.resource_path:
+                    resource_paths.append(pair.resource_path)
         
         total_selected = len(behavior_paths) + len(resource_paths)
-        if not inquirer.confirm(message=f"Confirma a instalação de {total_selected} pack(s) ({len(selected_pairs)} mod(s))?", default=True).execute():
+        if not inquirer.confirm(message=f"Confirma a instalação de {total_selected} pack(s) ({len(selected_keys)} mod(s))?", default=True).execute():
             info("Instalação cancelada.")
             return
     else:
