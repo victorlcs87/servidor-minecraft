@@ -241,10 +241,16 @@ def get_mod_base_name(name: str) -> str:
     # 1. Remove marcadores entre colchetes: [Behavior], [Resource], [BP], [RP]
     name = re.sub(r'\s*\[\s*(behavior\s*pack|resource\s*pack|behavior|resource|bp|rp)\s*\]', '', name, flags=re.IGNORECASE)
     
-    # 2. Remove versões trailing (ex: V4.1, v2.6.3, v1)
+    # 2. Remove versões entre colchetes: [7.4.0], [V2.7.5]
+    name = re.sub(r'\s*\[\s*v?\d+(\.\d+)*\s*\]', '', name, flags=re.IGNORECASE)
+    
+    # 3. Remove BP/RP grudado na versão: BPv2.6.3, RPv1.24.1
+    name = re.sub(r'(\s*[-_]?\s*)(bp|rp)v\d+(\.\d+)*\s*$', '', name, flags=re.IGNORECASE)
+    
+    # 4. Remove versões trailing (ex: V4.1, v2.6.3, v1)
     name = re.sub(r'\s*[-_]?\s*v\d+(\.\d+)*\s*$', '', name, flags=re.IGNORECASE)
     
-    # 3. Remove sufixos diretos: _behavior_pack, _resource_pack, _behavior, _resource, _bp, _rp, etc.
+    # 5. Remove sufixos diretos: _behavior_pack, _resource_pack, _behavior, _resource, _bp, _rp, etc.
     pattern = re.compile(
         r'(\s*[-_]?\s*'
         r'(behavior[_\s]?pack|resource[_\s]?pack|behavior|resource|bp|rp)'
@@ -253,11 +259,12 @@ def get_mod_base_name(name: str) -> str:
     )
     name = pattern.sub('', name)
     
-    # 4. Remove versões que sobraram após remoção de sufixos
+    # 6. Remove versões que sobraram após remoção de sufixos
     name = re.sub(r'\s*[-_]?\s*v\d+(\.\d+)*\s*$', '', name, flags=re.IGNORECASE)
     
-    # Limpar traços/underscores finais
+    # Limpar traços/underscores finais e espaços duplos
     name = name.rstrip(' -_')
+    name = re.sub(r'\s{2,}', ' ', name)
     
     stripped = name.strip()
     if not stripped:
@@ -630,18 +637,24 @@ def find_all_bp_rp_folders(root_folder: Path, max_depth: int = 5) -> Tuple[List[
         is_bp = (
             "behavior" in name_lower 
             or name_lower.endswith(" bp") 
-            or name_lower.endswith("_bp") 
+            or name_lower.endswith("_bp")
+            or name_lower.endswith("-bp")
             or name_lower == "bp"
             or " bp " in name_lower
+            or "[bp]" in name_lower          # [BP] entre colchetes
+            or bool(re.search(r'[\s_-]bpv\d', name_lower))  # BPv2.6.3
         )
         
         # Resource Pack variants
         is_rp = (
             "resource" in name_lower 
             or name_lower.endswith(" rp") 
-            or name_lower.endswith("_rp") 
+            or name_lower.endswith("_rp")
+            or name_lower.endswith("-rp")
             or name_lower == "rp"
             or " rp " in name_lower
+            or "[rp]" in name_lower          # [RP] entre colchetes
+            or bool(re.search(r'[\s_-]rpv\d', name_lower))  # RPv2.6.3
         )
         
         return is_bp, is_rp
